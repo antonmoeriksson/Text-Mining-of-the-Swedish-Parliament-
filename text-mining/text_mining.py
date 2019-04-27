@@ -1,35 +1,24 @@
 import imageio as imageio
-import numpy as np
 import pydotplus as pydotplus
 
 import urllib.request
 
 import itertools
-import seaborn as sn
 
-from collections import Counter
-import lxml
-import bs4
 from bs4 import BeautifulSoup
 
-import spacy
 from spacy.lang.sv import *
 from spacy.lang.sv import stop_words
 
-import time
 import re
 import pickle
 import csv
 import io
 
 import pandas as panda
+import gensim
 import matplotlib.pyplot as plt
-import datetime
 
-import os
-
-from scipy import misc
-from sklearn import tree
 from sklearn.tree import DecisionTreeClassifier, export_graphviz
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
@@ -37,115 +26,23 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 
+from gensim.utils import simple_preprocess
+from gensim.parsing.preprocessing import STOPWORDS
+from gensim import corpora, models
 
-
-def read_file(file_name):
+def pre_process_data(text):
     """
-
-    :param file_name:
-    :return:
+    Tokenization the text and removes stopwords.
+    :param text:
+    :return: [tokens]
     """
-    with open(file_name) as file:
-        reader = csv.reader(file)
-        input = list(reader)
+    ploictical_common_words = {"motion"}
+    result = list()
+    for token in simple_preprocess(text):
+        if not (token in STOPWORDS or token in ploictical_common_words):
+            result.append(token)
+    return result
 
-    return input
-
-def string_column_to_int_column(panda_dataframe):
-    panda_dataframe["född"] = panda_dataframe["född"].astype(int)
-    panda_dataframe["datum"] = panda.to_datetime(panda_dataframe['datum'])
-    panda_dataframe["talartid"] = panda_dataframe["talartid"].astype(int)
-    panda_dataframe["tecken"] = panda_dataframe["tecken"].astype(int)
-    panda_dataframe["aktiviteter"] = panda_dataframe["aktiviteter"].astype(int)
-
-    return panda_dataframe
-
-
-def create_pandas_dataframe(file_content):
-    index = list(range(0, len(file_content) - 1))
-    col = file_content[0]
-
-    return panda.DataFrame(file_content[1:], index=index, columns=col)
-
-
-def explore_dataset():
-    file_content = read_file("Sagtochgjort.csv")
-
-    panda_dataframe = create_pandas_dataframe(file_content)
-    panda_dataframe = string_column_to_int_column(panda_dataframe)
-    # print(panda_dataframe)
-    # print(panda_dataframe["datum"])
-    # print(panda_dataframe.describe())
-
-
-    speeches = panda_dataframe[panda_dataframe.dokumenttyp == 'anf']
-    speeches_by_years = list()
-    year_10_11 = speeches[speeches.riksmöte == '2010/11']
-    year_11_12 = speeches[speeches.riksmöte == '2011/12']
-    year_12_13 = speeches[speeches.riksmöte == '2012/13']
-    year_13_14 = speeches[speeches.riksmöte == '2013/14']
-    year_14_15 = speeches[speeches.riksmöte == '2014/15']
-    year_15_16 = speeches[speeches.riksmöte == '2015/16']
-    year_16_17 = speeches[speeches.riksmöte == '2016/17']
-    dummy_data = speeches[speeches.talartid > 500]['parti']
-    print(dummy_data)
-    year_16_17.groupby("parti")['talartid'].count().plot(kind='bar')
-    # plt.plot(panda_dataframe["talare"], panda_dataframe["tecken"])
-    plt.show()
-    return None
-
-
-def desiction_tree_classefaying():
-    file_content = read_file("Sagtochgjort.csv")
-
-    panda_dataframe = create_pandas_dataframe(file_content)
-    panda_dataframe = string_column_to_int_column(panda_dataframe)
-
-
-    training_data, test_data = train_test_split(panda_dataframe, test_size=0.25)
-    print("Size of Traning data is: " + str(len(training_data)) + "\nSize of the Testing data is: " + str(len(test_data)))
-
-    classifier = DecisionTreeClassifier(min_samples_split=1000)
-    features = ["född", "talartid", "tecken", "aktiviteter"]
-
-    x_training_data = training_data[features]
-    y_traning_data = training_data['parti']
-
-
-    x_test_data = test_data[features]
-    y_test_data = test_data['parti']
-
-    desiction_tree = classifier.fit(x_training_data, y_traning_data)
-
-    file = io.StringIO()
-    export_graphviz(desiction_tree, out_file=file, feature_names=features)
-    pydotplus.graph_from_dot_data(file.getvalue()).write_png("dec_tree.png")
-    pic = imageio.imread("dec_tree.png")
-    #plt.imshow(pic)
-
-    y_predict = classifier.predict(x_test_data)
-
-    acc = accuracy_score(y_test_data, y_predict)
-    print(acc*100)
-    return None
-
-def npl_for_swedish_parlament():
-    nlp = Swedish()
-    my_file = open("test-motion.txt").read()
-    my_file = my_file.replace('\n', ' ')
-    nlp.add_pipe(nlp.create_pipe('sentencizer'))
-    nlp_file = nlp(my_file)
-
-    list_of_tokens_in_sent = list()
-    for i, sentenace in enumerate(nlp_file.sents):
-        #print(str(i) + ": " + str(sentenace))
-        list_of_tokens_in_sent.append([token.text.lower() for token in sentenace if not token.is_stop and token.is_alpha])
-    print(list_of_tokens_in_sent)
-
-
-
-
-    return None
 
 def get_data_from_urls():
     url_list = []
@@ -159,8 +56,6 @@ def get_data_from_urls():
                         '=&nr=&org=&iid=&parti=S%2cM%2cL%2cKD%2cV%2cSD%2cC%2cMP%2cNYD%2c-&webbtv'
                         '=&talare=&exakt=&planering=&sort=rel&sortorder=desc&rapport=&utformat=json&a=s&p=' + str(i))
 
-
-
     content = []
     for url in url_list:
         content.append(urllib.request.urlopen(url).read().decode('utf-8'))
@@ -172,21 +67,15 @@ def get_data_from_urls():
 
     app_url_list = []
     party_list = list()
-    app_url_set = set()
     party_dict = {}
-    #print(len(content))
     for c in content:
-        #print(c)
         app_url_list.append(re.findall(appre, c))
         party_list.append(re.findall(party_regex, c))
-
 
     for j, url in enumerate(app_url_list):
         print("The len of app URL list {}  and URL has the len {}".format(j, len(url)))
 
-
     print("The len of PARTYLIST [0] {}  and and PARTY LIST[0] {}".format(len(party_list[0]), len(party_list[1])))
-
 
     corrupted_indexes = list()
     for a, party in enumerate(party_list):
@@ -197,46 +86,19 @@ def get_data_from_urls():
             party[i] = "(" + elem
             if party[i] not in party_dict:
                 party_dict[party[i]] = 0
-            #print("Part is : " + str(party[i]))
             party_dict[party[i]] += 1
 
     for key in party_dict:
         party_dict[key] /= 2
         party_dict[key] = int(party_dict[key])
 
-
-    print(app_url_list[0])
-    print(app_url_list[1])
-
-    # print("Len of app url list" + str(len(app_url_list)))
-    # for url in app_url_list:
-    #     app_url_set.update(url)
-    #
-    # #print(len(app_url_set))
-    # app_url_list = list(app_url_set)
-    #
-    # #print(len(app_url_list[0]))
-    # #print(len(app_url_list[1]))
-
     url_content_list = list()
     url_to_text_dict = {}
-    i = 0
-    # content = urllib.request.urlopen('https://play.google.com/' + app_url_list[0]).read().decode('utf-8')
-    # print(content)
-    # url_to_text_dict[app_url_list[0]] = re.findall(desc_re, content)
     i = 0
     for q, elem in enumerate(app_url_list):
         print("#" + str(q))
         for i, url in enumerate(elem):
             url_content = urllib.request.urlopen('https:' + url).read().decode('utf-8')
-            #print(url_content_list[-1])
-            #print(type(url_content_list[-1]))
-            # soup = BeautifulSoup(url_content_list[-1], 'lxml')
-            # text = soup.get_text().replace('\n', ' ')
-            # text = text.replace('-->', '')
-            # text = text.replace('  ', '')
-            # text = text.lower()
-
             soup = BeautifulSoup(url_content, 'lxml')  # create a new bs4 object from the html data loaded
             for script in soup(["script", "style"]):  # remove all javascript and stylesheet code
                 script.extract()
@@ -254,17 +116,6 @@ def get_data_from_urls():
             text = regex.sub('', text.lower())
 
             url_content_list.append(text)
-
-
-
-        #print(text)
-
-        #url_to_text_dict[url] = text
-
-        #print(url_content_list[i])
-
-        #print(url_to_text_dict[url])
-        #prit(i)
     print("url conetent list = " + str(len(url_content_list)))
 
     total_dict = 0
@@ -286,12 +137,12 @@ def get_data_from_urls():
 
     return None
 
+
 def pre_process_data():
     pickle_dict = pickle.load(open("test_save.p", "rb"))
     party_dict = pickle_dict["party_dict"]
     party_list = pickle_dict["party_list"]
     url_content_list = pickle_dict["url_content_list"]
-    #url_to_text_dict = pickle_dict["url_to_text_dict"]
     clean_text_list = list()
     print(party_dict)
 
@@ -302,22 +153,17 @@ def pre_process_data():
 
     print(stop_words.STOP_WORDS)
 
-
     for text in url_content_list:
         nlp_file = nlp(text)
         list_of_tokens_from_text = list()
         for i, sentenace in enumerate(nlp_file.sents):
-            #print(str(i) + ": " + str(sentenace))
             list_of_tokens_from_text.append(
                 [token.text.lower() for token in sentenace if token not in stop_words.STOP_WORDS and token.is_alpha])
         clean_text_list.append(list_of_tokens_from_text[0])
 
 
     print("Number of texts = " + str(len(clean_text_list)))
-#    print(url_to_tokens_dict['//data.riksdagen.se/dokument/H6022610.html'])
 
-    trans_vector = TfidfVectorizer(stop_words="swedish", min_df=0.04, max_df=0.5)
-    #array_of_texts = np.empty(len(url_to_text_dict))
 
 
 
@@ -330,16 +176,8 @@ def pre_process_data():
     y_axies = panda.DataFrame(flat_party_list, columns=["labels"])
     print(y_axies.head(5))
     print("Len of party list [0] = " + str(party_list))
-    #print(party_list[0])
-    #print(y_axies.head(40))
-    #print((len(list_of_texts[0])))
-    #print((len(list_of_texts[1])))
-
-    cont_vec = CountVectorizer()
 
 
-    #print(features)
-    #print(fitting.shape)
     flat_text_list = list()
     for text_list in clean_text_list:
         flat_text_list.append(' '.join(text_list))
@@ -348,74 +186,86 @@ def pre_process_data():
 
 
     data_frame = panda.DataFrame(flat_text_list, columns=["text"])
+    df = panda.DataFrame(data=[(y_axies['labels'], data_frame['text'])], columns=['party', 'text'])
+    #  lda_model = lda_baseline(df)
 
-    print(data_frame.head(6))
-    print()
+    #  Here we have Two Pandas data frame,
+    #  'data_frame' and 'y_axes' here we should begin to create a bag of word approach.
     training_data_X, test_data_X,training_data_Y, test_data_Y= train_test_split(data_frame,y_axies, test_size=0.80,)
-    #training_data_Y, test_data_Y = train_test_split(y_axies, test_size=0.80)
 
-    print("Afetr splitxuu")
-    #print(type(training_data_X))
-    fitting = cont_vec.fit_transform(training_data_X.text)
-    #print(fitting)
-    print("Beeeer")
-    #print(str(fitting.shape))
-    print(training_data_Y.shape)
-    print(training_data_X.shape)
-
-    print(test_data_Y.shape)
-    print(test_data_X.shape)
-    features = cont_vec.get_feature_names()
-    #print(str(features))
-
-    #print(data_frame.shape)
-    #print(data_frame.head(3))
-
-    print(training_data_X.shape)
-    print(training_data_Y.shape)
-
-    #print(test_data_X.shape)
-    #print(test_data_Y.shape)
+    return training_data_X, test_data_X, training_data_Y, test_data_Y
 
 
-    #gaussian = GaussianNB()
-    #gaussian_fitting =gaussian.fit(fitting.toarray(), training_data_Y)
-    #gaussian_predtion = gaussian_fitting.predict(test_data_X)
-    #print(type(gaussian_fitting))
-    print("Shape of  test_data_Y = " + str(test_data_Y.shape))
-    print("Shape of  fitting = " + str(fitting.shape))
+def create_lda_model(df):
+    processed_documents = df["text"].map(pre_process_data)
+
+    # Creates as dictionary containing words and word counts, and filtering out extremes.
+    dictionary = corpora.Dictionary(processed_documents)
+    dictionary.filter_extremes(no_below=2, no_above=0.5, keep_n=100000)
+
+    # Creates a Bag of Words linking the words in each document to it's word count.
+    bag_of_words = [dictionary.doc2bow(doc) for doc in processed_documents]
+
+    # Create and applies a Term frequency–inverse document frequency model to the bag of words.
+    tfidf = models.TfidfModel(bag_of_words)
+    corpus_tfidf = tfidf[bag_of_words]
+
+    # Create LDA model from the TF-IDF model.
+    return gensim.models.LdaMulticore(corpus_tfidf, num_topics=8, id2word=dictionary,
+                                                 workers=4, minimum_probability=0.0)
 
 
-    multiNB = MultinomialNB()
-    multiNB_fitting = multiNB.fit(fitting, training_data_Y.labels)
+def present_results(test_data_x, test_data_y, training_data_x, training_data_y):
+    # Init all different vectorizers.
+    bow_vectorizer = CountVectorizer()
+    bigram_vecorizer = CountVectorizer(ngram_range=(1, 2), min_df=1)
+    tfidf_vectorizer = TfidfVectorizer()
 
-    y_data = cont_vec.transform(test_data_X.text)
-    print(test_data_X.shape)
-    print(y_data.shape)
+    # Fit all the vectorizers on the training data.
+    bow_fitting = bow_vectorizer.fit_transform(training_data_x.text)
+    bigram_fitting = bigram_vecorizer.fit_transform(training_data_x.text)
+    tfidf_fitting = tfidf_vectorizer.fit_transform(training_data_x.text)
 
-    multiNB_predictioon = multiNB_fitting.predict(y_data)
-    #print(str(multiNB_predictioon.classes_))
+    #  Init machine learning models to use.
+    multi_nb = MultinomialNB()
 
-    print("End")
+    #  Training of the machine learning models on the training data.
+    multi_nb_bow_fitting = multi_nb.fit(bow_fitting, training_data_y.labels)
+    multi_nb_bigram_fitting = multi_nb.fit(bigram_fitting, training_data_y.labels)
+    multi_nb_tfidf_fitting = multi_nb.fit(tfidf_fitting, training_data_y.labels)
 
-    print(y_data)
-    print("Accercy of the fuction {} is {}".format("Multinomila",accuracy_score(test_data_Y, multiNB_predictioon)))
-    print("F1of the fuction {} is {}".format("Multinomila",f1_score(test_data_Y, multiNB_predictioon, average='weighted')))
-    print("Recallof the fuction {} is {}".format("Multinomila",recall_score(test_data_Y, multiNB_predictioon,average='weighted')))
-    print("Persction of the fuction {} is {}".format("Multinomila",precision_score(test_data_Y, multiNB_predictioon,average='weighted')))
+    #  Transform the test test data to the correct form.
+    y_data_bow = bow_vectorizer.transform(test_data_x.text)
+    y_data_bigram = bigram_vecorizer.transform(test_data_x.text)
+    y_data_tfidf = tfidf_vectorizer.transform(test_data_x.text)
 
-    train = panda.DataFrame([training_data_X.text, training_data_Y.labels])
+    print(test_data_x.shape)
+    print(y_data_bow.shape)
+
+    #  Performers the prediction with the models.
+    multi_nb_bow_prediction = multi_nb_bow_fitting.predict(y_data_bow)
+    multi_nb_bigram_prediction = multi_nb_bigram_fitting.predict(y_data_bigram)
+    multi_nb_tfidf_prediction = multi_nb_tfidf_fitting.predict(y_data_tfidf)
+
+    # Analizes the models predictions.
+    print("Accercy of the fuction {} is {}".format("Multinomila", accuracy_score(test_data_y, multi_nb_bow_prediction)))
+    print("  the fuction {} is {}".format("Multinomila",
+                                             f1_score(test_data_y, multi_nb_bow_prediction, average='weighted')))
+    print("Recall of the fuction {} is {}".format("Multinomila",
+                                                 recall_score(test_data_y, multi_nb_bow_prediction, average='weighted')))
+    print("Persction of the fuction {} is {}".format("Multinomila", precision_score(test_data_y, multi_nb_bow_prediction,
+                                                                                    average='weighted')))
+    train = panda.DataFrame([training_data_x.text, training_data_y.labels])
     print(train.head(2))
-    #train.columns = ["text", "lables"]
-    #train['cat'] = train.labels.factorize()[0]
-    #cat_id = train[['label', 'cat']].drop_duplicates().sort_values('cat').reset_index(drop=True)
-
-
-    print(confusion_matrix(test_data_Y.labels, multiNB_predictioon))
-    cm = confusion_matrix(test_data_Y.labels, multiNB_predictioon)
+    # train.columns = ["text", "lables"]
+    # train['cat'] = train.labels.factorize()[0]
+    # cat_id = train[['label', 'cat']].drop_duplicates().sort_values('cat').reset_index(drop=True)
+    print(confusion_matrix(test_data_y.labels, multi_nb_bow_prediction))
+    cm = confusion_matrix(test_data_y.labels, multi_nb_bow_prediction)
     plt.matshow(cm)
     plt.title("TEST")
     plt.show()
+
 
 def concatenate_collected_data():
     great_url_to_text_dict = {}
@@ -465,18 +315,19 @@ def concatenate_collected_data():
     pickle.dump(pickle_dict2, open("great_save.p", "wb"))
 
 
-
-
 def main():
     """
 
     :return:
     """
+    print("Let's go")
     #desiction_tree_classefaying()
     #npl_for_swedish_parlament()
     #get_data_from_urls()
     #concatenate_collected_data()
-    pre_process_data()
+    training_data_x, test_data_x, training_data_y, test_data_y = pre_process_data()
+    present_results(test_data_x, test_data_y, training_data_x, training_data_y)
+
 
 if __name__ == '__main__':
     main()
